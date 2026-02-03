@@ -1,0 +1,97 @@
+{
+  "users": [
+    {
+      "id": "1770047389830",
+      "phone": "13875977661",
+      "name": "李娜",
+      "password": "20030803",
+      "role": "parent",
+      "boundPhones": [
+        "18774822208",
+        "15367844070"
+      ],
+      "avatarUrl": "https://i.pravatar.cc/150?u=13875977661"
+    },
+    {
+      "id": "1770047473558",
+      "phone": "15367844070",
+      "name": "陈芷萱",
+      "password": "20030803",
+      "role": "child",
+      "boundPhones": [
+        "13875977661",
+        "13723897550"
+      ],
+      "avatarUrl": "https://i.pravatar.cc/150?u=15367844070"
+    },
+    {
+      "id": "1770047534757",
+      "phone": "18774822208",
+      "name": "熊中华",
+      "password": "20030803",
+      "role": "elderly",
+      "boundPhones": [
+        "13875977661"
+      ],
+      "avatarUrl": "https://i.pravatar.cc/150?u=18774822208"
+    },
+    {
+      "id": "1770112301050",
+      "phone": "13723897550",
+      "name": "陈泽中",
+      "password": "20030803",
+      "role": "parent",
+      "boundPhones": [
+        "15367844070"
+      ]
+    }
+  ],
+  "reports": [],
+  "messages": [],
+  "schedules": [
+    {
+      "id": "1770047702368",
+      "userId": "15367844070",
+      "title": "学习",
+      "time": "08:00",
+      "type": "life",
+      "createdBy": "13875977661",
+      "status": "pending"
+    },
+    {
+      "id": "1770047724785",
+      "userId": "18774822208",
+      "title": "喂猫",
+      "time": "07:00",
+      "type": "life",
+      "createdBy": "13875977661",
+      "status": "pending"
+    },
+    {
+      "id": "1770110370654",
+      "userId": "18774822208",
+      "title": "吃降压药",
+      "time": "17:00",
+      "type": "medication",
+      "createdBy": "13875977661",
+      "status": "pending"
+    },
+    {
+      "id": "1770112838450",
+      "userId": "15367844070",
+      "title": "吃饭",
+      "time": "18:00",
+      "type": "life",
+      "createdBy": "13723897550"
+    }
+  ],
+  "healthLogs": [
+    {
+      "id": "1770103219605",
+      "userId": "18774822208",
+      "type": "blood_pressure",
+      "value": "120",
+      "timestamp": "2026-02-03T07:20:19.605Z"
+    }
+  ]
+}
