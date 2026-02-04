@@ -186,11 +186,14 @@ app.post('/api/admin/midnight-sync', async (req, res) => {
 
       // 简单的文案映射
       const summaryMap = {
-          happiness: "充满活力，语调积极。",
-          sadness: "语调低沉，情绪略显低落。",
-          anger: "情绪激动，语速较快。",
-          fear: "声音紧张，显露不安。",
-          neutral: "情绪平稳，状态正常。"
+          happiness: "充满活力，语调积极，心情愉悦。",
+          surprise: "语调上扬，反应强烈，对新鲜事物充满好奇。",
+          neutral: "反应平淡，情绪无明显波动，处于客观状态。",
+          calm: "气息平稳，心态安详从容，感到放松。",
+          sadness: "语调低沉，情绪低落，略显消极。",
+          disgust: "语气中流露出排斥感，对某些事物感到不悦。",
+          anger: "情绪激动，语速较快，带有对抗性。",
+          fear: "声音紧张，显露不安，缺乏安全感。"
       };
       
       const report = {

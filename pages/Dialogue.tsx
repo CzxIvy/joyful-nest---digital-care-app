@@ -279,7 +279,7 @@ const startRecording = () => {
 
   // ... (JSX 部分保持不变，UI 逻辑完全复用) ...
   return (
-    <div className="min-h-screen bg-black flex flex-col p-6 overflow-hidden relative">
+    <div className="h-screen bg-black flex flex-col p-4 md:p-6 overflow-hidden relative">
       {/* 你的原有 UI 代码保持不变 */}
       <div className="flex items-center justify-between mb-4 z-20">
         <div className="bg-white/10 px-4 py-2 rounded-full border border-white/5 flex items-center space-x-2">
@@ -294,7 +294,7 @@ const startRecording = () => {
         )}
       </div>
 
-      <div className="relative flex-1 rounded-[48px] overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl">
+      <div className="relative flex-1 rounded-[32px] md:rounded-[48px] overflow-hidden bg-zinc-900 border border-white/5 shadow-2xl max-h-[70vh] min-h-0">
         <video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover transition-opacity duration-700 ${isConnected ? 'opacity-100' : 'opacity-0'}`} />
         
         {isConnected && (
@@ -325,7 +325,7 @@ const startRecording = () => {
         </div>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-4 md:mt-6 shrink-0 pb-2">
         {!isConnected ? (
           <button onClick={startAgentSession} disabled={isConnecting} className="w-full bg-indigo-600 text-white font-black py-6 rounded-[32px] shadow-2xl active:scale-95 transition-all disabled:opacity-50">
             {isConnecting ? '初始化中...' : '启动对话'}

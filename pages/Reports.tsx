@@ -69,11 +69,15 @@ const Reports: React.FC<{ user: User }> = ({ user }) => {
     }
   };
 
-  const formatChartData = (details: SentimentReport['details']) => [
-    { subject: '快乐', A: details.happiness },
-    { subject: '忧郁', A: details.sadness },
-    { subject: '愤怒', A: details.anger },
-    { subject: '恐惧', A: details.fear },
+  const formatChartData = (details: any) => [
+    { subject: '快乐', A: details.happiness || 0, fullMark: 100 },
+    { subject: '惊讶', A: details.surprise || 0, fullMark: 100 },
+    { subject: '中性', A: details.neutral || 0, fullMark: 100 },
+    { subject: '平静', A: details.calm || 0, fullMark: 100 },
+    { subject: '悲伤', A: details.sadness || 0, fullMark: 100 },
+    { subject: '厌恶', A: details.disgust || 0, fullMark: 100 },
+    { subject: '愤怒', A: details.anger || 0, fullMark: 100 },
+    { subject: '恐惧', A: details.fear || 0, fullMark: 100 },
   ];
 
   const getRoleIcon = (role?: string) => {
@@ -94,17 +98,17 @@ const Reports: React.FC<{ user: User }> = ({ user }) => {
             <h2 className="text-2xl font-black text-gray-800 tracking-tight">每日关怀报表</h2>
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Multi-modal Synthesis Report</p>
           </div>
-          <button 
+          {/* <button 
             onClick={handleMidnightSync}
             disabled={isSyncing}
             className="text-[10px] font-black uppercase tracking-widest bg-black text-white px-5 py-2.5 rounded-full shadow-lg active:scale-95 transition disabled:opacity-50"
           >
             {isSyncing ? '深度分析中...' : '模拟凌晨同步'}
-          </button>
+          </button> */}
         </div>
 
         {/* 温馨寄语发送区 */}
-        <div className="bg-indigo-600 rounded-[32px] p-6 shadow-xl text-white relative overflow-hidden group">
+        {/* <div className="bg-indigo-600 rounded-[32px] p-6 shadow-xl text-white relative overflow-hidden group">
            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
            <div className="flex items-center space-x-3 mb-4">
              <i className="fas fa-heart text-red-400"></i>
@@ -123,7 +127,7 @@ const Reports: React.FC<{ user: User }> = ({ user }) => {
           >
              {isSending ? '正在送达...' : '发送寄语'}
            </button>
-        </div>
+        </div> */}
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">

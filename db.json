@@ -10,7 +10,10 @@
         "18774822208",
         "15367844070"
       ],
-      "avatarUrl": "https://i.pravatar.cc/150?u=13875977661"
+      "avatarUrl": "https://i.pravatar.cc/150?u=13875977661",
+      "did_image_url": "/uploads/image-1770216584954-805058112.png",
+      "did_voice_id": "voice-1770047389830-1770216589511",
+      "voiceSampleUrl": "/uploads/voice-1770216589509-245445987.mp3"
     },
     {
       "id": "1770047473558",
@@ -31,7 +34,8 @@
       "password": "20030803",
       "role": "elderly",
       "boundPhones": [
-        "13875977661"
+        "13875977661",
+        "13723897550"
       ],
       "avatarUrl": "https://i.pravatar.cc/150?u=18774822208"
     },
@@ -42,22 +46,58 @@
       "password": "20030803",
       "role": "parent",
       "boundPhones": [
-        "15367844070"
+        "15367844070",
+        "18774822208"
       ]
     }
   ],
-  "reports": [],
-  "messages": [],
-  "schedules": [
+  "reports": [
     {
-      "id": "1770047702368",
-      "userId": "15367844070",
-      "title": "学习",
-      "time": "08:00",
-      "type": "life",
-      "createdBy": "13875977661",
-      "status": "pending"
+      "id": "daily-1770194002894-1770194967058",
+      "userId": "1770047534757",
+      "userName": "陈芷萱",
+      "userRole": "child",
+      "date": "2026-02-03",
+      "overallMood": "happiness",
+      "trend": "情绪持续高涨",
+      "summary": "充满活力，语调积极，心情愉悦。",
+      "details": {
+        "happiness": 85,
+        "surprise": 40,
+        "neutral": 10,
+        "calm": 20,
+        "sadness": 5,
+        "fear": 0,
+        "anger": 5,
+        "disgust": 0
+      },
+      "suggestions": "请家长给予具体的表扬，增强孩子的自信心和成就感。",
+      "interactionCount": 3
     },
+    {
+      "id": "daily-1770193972743-1770194966638",
+      "userId": "1770193972743",
+      "userName": "熊中华",
+      "userRole": "elderly",
+      "date": "2026-02-03",
+      "overallMood": "calm",
+      "trend": "情绪较为稳定",
+      "summary": "气息平稳，心态安详从容，感到放松。",
+      "details": {
+        "happiness": 0.2,
+        "surprise": 0.05,
+        "neutral": 0.4,
+        "calm": 0.5,
+        "sadness": 0.3,
+        "fear": 0.15,
+        "anger": 0.05,
+        "disgust": 0.1
+      },
+      "suggestions": "建议提醒老人注意保暖，如果周末确实有空探望，最好提前打个电话确认，让老人有所期待。",
+      "interactionCount": 2
+    }
+  ],
+  "schedules": [
     {
       "id": "1770047724785",
       "userId": "18774822208",
@@ -92,6 +132,15 @@
       "time": "16:30",
       "type": "life",
       "createdBy": "13875977661"
+    },
+    {
+      "id": "1770217368276",
+      "status": "pending",
+      "userId": "15367844070",
+      "title": "学习",
+      "time": "08:00",
+      "type": "life",
+      "createdBy": "13723897550"
     }
   ],
   "healthLogs": [
