@@ -19,8 +19,8 @@
       "password": "20030803",
       "role": "child",
       "boundPhones": [
-        "13875977661",
-        "13723897550"
+        "13723897550",
+        "13875977661"
       ],
       "avatarUrl": "https://i.pravatar.cc/150?u=15367844070"
     },
@@ -83,6 +83,15 @@
       "time": "18:00",
       "type": "life",
       "createdBy": "13723897550"
+    },
+    {
+      "id": "1770189706068",
+      "status": "pending",
+      "userId": "15367844070",
+      "title": "晒衣服",
+      "time": "16:30",
+      "type": "life",
+      "createdBy": "13875977661"
     }
   ],
   "healthLogs": [
@@ -92,6 +101,13 @@
       "type": "blood_pressure",
       "value": "120",
       "timestamp": "2026-02-03T07:20:19.605Z"
+    },
+    {
+      "id": "1770189747955",
+      "timestamp": "2026-02-04T07:22:27.955Z",
+      "userId": "18774822208",
+      "type": "blood_pressure",
+      "value": "116"
     }
   ]
 }

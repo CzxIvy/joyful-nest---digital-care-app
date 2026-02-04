@@ -22,6 +22,8 @@ const Dialogue: React.FC<{ user: User }> = ({ user }) => {
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  // 新增：专门用来存摄像头流，不受页面渲染影响
+  const userStreamRef = useRef<MediaStream | null>(null);
 
   // 1. 初始化 Agent Manager 和 语音识别
   useEffect(() => {
@@ -41,24 +43,32 @@ const Dialogue: React.FC<{ user: User }> = ({ user }) => {
           callbacks: {
             // SDK 核心回调：当视频流就绪时
             onSrcObjectReady: (stream: MediaStream) => {
-              // 1. 核心检查：如果 videoRef 已经不在了，直接退出
               if (!videoRef.current) return;
 
-              // 2. 绑定视频流
+              // 1. 绑定视频流
               videoRef.current.srcObject = stream;
               
-              // 3. 安全播放逻辑
-              // 只有当 video 元素确实连接在页面文档上时，才执行 play
-              if (videoRef.current.isConnected) {
-                videoRef.current.play().catch(e => {
-                  // 忽略 "AbortError"，这是 React 开发模式下的常见噪音，不影响实际功能
-                  if (e.name === 'AbortError') {
-                    console.log('Video play aborted (safe to ignore)');
-                    return;
+              // 2. 核心修改：强制开启音频的“三板斧”
+              // 第一斧：确保属性层面的静音是关闭的
+              videoRef.current.muted = false; 
+
+              // 第二斧：尝试播放
+              videoRef.current.play().then(() => {
+                  console.log('视频开始播放');
+                  // 第三斧：再次强制解除静音（防止浏览器自动给静音了）
+                  videoRef.current.muted = false;
+                  videoRef.current.volume = 1.0; // 拉满音量
+              }).catch(e => {
+                  console.error('播放报错:', e);
+                  // 如果报错 NotAllowedError，说明浏览器拦截了声音
+                  // 这种情况下，我们需要先静音播放，让画面动起来，然后引导用户点一下页面
+                  if (e.name === 'NotAllowedError') {
+                      console.log('浏览器阻止了自动播放音频，尝试静音播放...');
+                      videoRef.current.muted = true;
+                      videoRef.current.play();
+                      // 这里可以弹个提示告诉用户：“请点击屏幕任意位置开启声音”
                   }
-                  console.error('Video play error:', e);
-                });
-              }
+              });
             },
             // SDK 核心回调：连接状态变化
             onConnectionStateChange: (state: string) => {
@@ -128,47 +138,106 @@ const Dialogue: React.FC<{ user: User }> = ({ user }) => {
     };
   }, [user.phone]);
 
+  useEffect(() => {
+    if (isConnected && userVideoRef.current && userStreamRef.current) {
+      userVideoRef.current.srcObject = userStreamRef.current;
+      userVideoRef.current.muted = true; // 本地预览静音
+    }
+  }, [isConnected]);
+
   // 2. 启动连接
-  const startAgentSession = async () => {
+const startAgentSession = async () => {
     if (!agentManager) return;
     setIsConnecting(true);
-    setStatusMessage('正在连接 D-ID 服务...');
-    
+    setStatusMessage('正在检查设备...'); // 修改提示
+
     try {
-        // SDK 一键连接
+        // 1. 获取流
+        const userStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: { echoCancellation: true, noiseSuppression: true } 
+        });
+
+        // 关键修改：把流存到 Ref 里，而不是直接给 DOM
+        userStreamRef.current = userStream;
+
+        setStatusMessage('正在连接 D-ID 服务...');
         await agentManager.connect();
+        
+        // 3. 处理音频上下文 (放在最后)
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
-      
-        // 同时开启本地摄像头 (保持原有逻辑)
-        const userStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (userVideoRef.current) userVideoRef.current.srcObject = userStream;
-    } catch (err) {
+        // 如果之前被浏览器静音了，这里再试一次解除
+        if (videoRef.current) {
+            videoRef.current.muted = false;
+        }
+
+    } catch (err: any) {
         console.error('Connect error:', err);
         setIsConnecting(false);
-        setStatusMessage('连接失败，请重试');
+        
+        // 给用户更友好的错误提示
+        if (err.name === 'NotReadableError') {
+            setStatusMessage('麦克风被占用，请关闭其他占用麦克风的软件');
+            alert('无法访问麦克风/摄像头。请检查是否被 Zoom/腾讯会议 等软件占用，或检查 Windows 隐私设置。');
+        } else if (err.name === 'NotAllowedError') {
+            setStatusMessage('请允许浏览器访问摄像头和麦克风');
+        } else {
+            setStatusMessage('连接失败，请重试');
+        }
     }
   };
 
   // 3. 录音控制 (保持逻辑，但修改发送部分)
-  const startRecording = () => {
-    if (!userVideoRef.current?.srcObject) return;
+const startRecording = () => {
+    // 1. 直接检查 Ref 里的流
+    if (!userStreamRef.current) {
+      console.error("没有检测到媒体流，尝试重新获取...");
+      // 容错：如果真的没了，这里可以加个重新获取的逻辑，或者直接报错提示
+      alert("无法录音：未检测到麦克风信号，请刷新页面重试。");
+      return;
+    }
+    
     setIsRecording(true);
     setTranscription('');
     recordedChunksRef.current = [];
     
-    // 媒体录制用于后续情感分析
-    const recorder = new MediaRecorder(userVideoRef.current.srcObject as MediaStream, { mimeType: 'video/webm' });
-    mediaRecorderRef.current = recorder;
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
-    recorder.onstop = async () => {
-      const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-      await apiService.queueVideoForAnalysis(user.id, videoBlob);
-    };
-    recorder.start();
-    recognitionRef.current?.start();
+    // 2. 从 Ref 中提取音频
+    const stream = userStreamRef.current;
+    const audioTrack = stream.getAudioTracks()[0];
+    
+    if (!audioTrack) {
+        alert("错误：流中没有音频轨道，请检查麦克风权限。");
+        setIsRecording(false);
+        return;
+    }
+
+    const audioStream = new MediaStream([audioTrack]);
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    const options = mimeType ? { mimeType } : {};
+    
+    try {
+        const recorder = new MediaRecorder(audioStream, options);
+        mediaRecorderRef.current = recorder;
+        
+        recorder.ondataavailable = (e) => { 
+            if (e.data.size > 0) recordedChunksRef.current.push(e.data); 
+        };
+        
+        recorder.onstop = async () => {
+            const audioBlob = new Blob(recordedChunksRef.current, { type: 'audio/webm' });
+            await apiService.queueAudioForAnalysis(user.id, audioBlob);
+        };
+        
+        recorder.start();
+        if (recognitionRef.current) recognitionRef.current.start();
+    } catch (e) {
+        console.error("Recorder error:", e);
+        alert("录音启动失败，请查看控制台。");
+        setIsRecording(false);
+    }
   };
 
   const stopRecording = async () => {

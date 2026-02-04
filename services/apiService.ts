@@ -16,11 +16,11 @@ export const apiService = {
     return res.json();
   },
 
-  queueVideoForAnalysis: async (userId: string, blob: Blob) => {
+  queueAudioForAnalysis: async (userId: string, blob: Blob) => {
     const formData = new FormData();
-    formData.append('video', blob, 'video.webm');
+    formData.append('audio', blob, 'audio.webm');
     formData.append('userId', userId);
-    const res = await fetch(`${BASE_URL}/queue-video`, { method: 'POST', body: formData });
+    const res = await fetch(`${BASE_URL}/queue-audio`, { method: 'POST', body: formData });
     return res.json();
   },
 

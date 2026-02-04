@@ -1,13 +1,20 @@
 
 import express from 'express';
 import cors from 'cors';
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import fetch from 'node-fetch';
 import { GoogleGenAI, Type } from "@google/genai";
+import OpenAI from 'openai';
+import Groq from 'groq-sdk';
+
+import FormData from 'form-data';
+import { exec } from 'child_process';
+import util from 'util';
+const execPromise = util.promisify(exec);
 
 dotenv.config({ path: '.env.local' });
 
@@ -25,21 +32,42 @@ const DID_API_KEY = process.env.DID_API_KEY || '';
 const DID_CLIENT_KEY = process.env.DID_CLIENT_KEY || '';
 const DID_AGENT_ID = process.env.DID_AGENT_ID || '';
 
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, 
+  base_url:"https://api.chatanywhere.tech/v1"
+});
+const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
+});
+
 async function ensureDirs() {
-  try { await fs.access(UPLOADS_DIR); } catch { await fs.mkdir(UPLOADS_DIR); }
-  try { await fs.access(PENDING_DIR); } catch { await fs.mkdir(PENDING_DIR); }
+  try { 
+      await fs.promises.access(UPLOADS_DIR); 
+  } catch { 
+      await fs.promises.mkdir(UPLOADS_DIR, { recursive: true }); 
+  }
+  
+  try { 
+      await fs.promises.access(PENDING_DIR); 
+  } catch { 
+      await fs.promises.mkdir(PENDING_DIR, { recursive: true }); 
+  }
 }
 
 // Fixed: Enhanced multer storage to correctly route files and preserve extensions
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (file.fieldname === 'video') cb(null, PENDING_DIR);
-    else cb(null, UPLOADS_DIR);
+    destination: (req, file, cb) => {
+    if (file.fieldname === 'audio' || file.fieldname === 'video') {
+        cb(null, PENDING_DIR);
+    } else {
+        // 头像等其他资源存入公共目录
+        cb(null, UPLOADS_DIR);
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
-    cb(null, `${file.fieldname}-${uniqueSuffix}${ext || (file.fieldname === 'video' ? '.webm' : '')}`);
+    cb(null, `${file.fieldname}-${uniqueSuffix}${ext || (file.fieldname === 'audio' ? '.webm' : '')}`);
   }
 });
 const upload = multer({ storage: storage });
@@ -50,7 +78,7 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 
 async function readDB() {
   try {
-    const data = await fs.readFile(DB_FILE, 'utf-8');
+    const data = await fs.promises.readFile(DB_FILE, 'utf-8'); // 加 .promises
     return JSON.parse(data);
   } catch (e) {
     return { users: [], reports: [], messages: [], schedules: [], healthLogs: [] };
@@ -58,7 +86,7 @@ async function readDB() {
 }
 
 async function writeDB(data) {
-  await fs.writeFile(DB_FILE, JSON.stringify(data, null, 2));
+  await fs.promises.writeFile(DB_FILE, JSON.stringify(data, null, 2)); // 加 .promises
 }
 
 app.get('/api/did/config', (req, res) => {
@@ -71,98 +99,128 @@ app.get('/api/did/config', (req, res) => {
 
 // --- Midnight Sync: Aggregated Multi-modal Sentiment Analysis ---
 app.post('/api/admin/midnight-sync', async (req, res) => {
+  console.log('Midnight Sync Triggered (API Mode)');
   try {
-    const files = await fs.readdir(PENDING_DIR);
-    const videoFiles = files.filter(f => f.startsWith('video-'));
-    if (videoFiles.length === 0) return res.json({ message: 'No new recordings to analyze' });
+    const files = await fs.promises.readdir(PENDING_DIR); 
+    const audioFiles = files.filter(f => f.startsWith('video-') || f.startsWith('audio-'));
+    
+    if (audioFiles.length === 0) return res.json({ message: 'No new recordings to analyze' });
 
-    const userVideoMap = new Map();
-    videoFiles.forEach(file => {
-      // Filename format: video-userId-timestamp.webm
+    // 2.1 按用户分组
+    const userFileMap = new Map();
+    audioFiles.forEach(file => {
       const parts = file.split('-');
       if (parts.length > 1) {
         const userId = parts[1];
-        if (!userVideoMap.has(userId)) userVideoMap.set(userId, []);
-        userVideoMap.get(userId).push(file);
+        if (!userFileMap.has(userId)) userFileMap.set(userId, []);
+        userFileMap.get(userId).push(file);
       }
     });
 
-    // Fix: initialize GoogleGenAI inside handler per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const db = await readDB();
     const newReports = [];
+    const EMOTION_API_URL = process.env.EMOTION_API_URL || 'http://localhost:8000/analyze'; // 你的接口地址
 
-    for (const [userId, fileList] of userVideoMap.entries()) {
+    // 2.2 遍历用户
+    for (const [userId, fileList] of userFileMap.entries()) {
       const user = db.users.find(u => u.id === userId);
       const userName = user ? user.name : '用户';
-      const userRole = user ? user.role : 'elderly';
+      
+      let totalScores = { happiness: 0, sadness: 0, anger: 0, fear: 0, neutral: 0 };
+      let validCount = 0;
 
-      const videoParts = [];
+      console.log(`正在调用接口分析用户 ${userName} 的 ${fileList.length} 条语音...`);
+
       for (const file of fileList) {
-        const filePath = path.join(PENDING_DIR, file);
-        const videoData = await fs.readFile(filePath);
-        videoParts.push({ inlineData: { data: videoData.toString('base64'), mimeType: "video/webm" } });
+        const inputPath = path.join(PENDING_DIR, file);
+        const wavPath = path.join(PENDING_DIR, `${file}.wav`); // 临时 WAV
+
+        try {
+          // A. 预处理：FFmpeg 转码 (WebM -> WAV 16k Mono)
+          // 即使是调用接口，发送标准的 WAV 也能极大提高接口的兼容性和准确率
+          await execPromise(`ffmpeg -i "${inputPath}" -ar 16000 -ac 1 -y "${wavPath}"`);
+
+          // B. 构造 FormData
+          const form = new FormData();
+          form.append('file', fs.createReadStream(wavPath)); // ✅ 发送文件流
+
+          // C. 调用外部接口
+          const apiResponse = await fetch(EMOTION_API_URL, {
+            method: 'POST',
+            body: form,
+            headers: form.getHeaders(), // ✅ 关键：Node.js 中必须手动设置 headers
+          });
+
+          if (!apiResponse.ok) {
+             console.error(`接口调用失败: ${apiResponse.statusText}`);
+             continue;
+          }
+
+          const result = await apiResponse.json(); 
+          // 假设接口返回格式: { success: true, scores: { happiness: 80, ... } }
+          
+          // D. 累加分数
+          if (result && (result.success || result.scores)) {
+             validCount++;
+             const scores = result.scores || result; // 兼容不同接口格式
+             for (const key in totalScores) {
+               if (scores[key]) totalScores[key] += scores[key];
+             }
+          }
+
+          // E. 清理临时 WAV
+          await fs.promises.unlink(wavPath);
+
+        } catch (err) {
+          console.error(`处理文件 ${file} 失败:`, err);
+        }
       }
 
-      const prompt = `
-        用户姓名：${userName}，角色身份：${userRole}。
-        这些视频是该用户今天与AI数字人的对话片段。请作为家庭心理健康专家进行深度多模态分析：
-        1. 综合观察全天的情绪波动。如果是老人，请特别留意孤独感、健康焦虑或认知状态；如果是小孩，请留意其好奇心、专注力和心情。
-        2. 返回一个 JSON 报表，字段包括：
-           - overallMood: 全天主导情绪 (String)
-           - trend: 情绪演变趋势描述 (String)
-           - summary: 全天心理状态深度总结 (String)
-           - scores: { happiness, sadness, anger, fear } (0-100评分)
-           - suggestions: 给家长的具体关怀建议 (String)。
-      `;
+      // 2.3 计算平均分 & 生成报告 (纯规则逻辑，不依赖 LLM)
+      if (validCount > 0) {
+        for (const key in totalScores) totalScores[key] = Math.round(totalScores[key] / validCount);
+      }
+      
+      // 找出最大情绪
+      const maxEmotion = Object.keys(totalScores).reduce((a, b) => totalScores[a] > totalScores[b] ? a : b);
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
-        contents: [{ parts: [...videoParts, { text: prompt }] }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              overallMood: { type: Type.STRING },
-              trend: { type: Type.STRING },
-              summary: { type: Type.STRING },
-              scores: {
-                type: Type.OBJECT,
-                properties: {
-                  happiness: { type: Type.NUMBER },
-                  sadness: { type: Type.NUMBER },
-                  anger: { type: Type.NUMBER },
-                  fear: { type: Type.NUMBER },
-                }
-              },
-              suggestions: { type: Type.STRING }
-            }
-          }
-        }
-      });
-
-      // Fix: Correct usage of .text property
-      const analysis = JSON.parse(response.text.trim());
+      // 简单的文案映射
+      const summaryMap = {
+          happiness: "充满活力，语调积极。",
+          sadness: "语调低沉，情绪略显低落。",
+          anger: "情绪激动，语速较快。",
+          fear: "声音紧张，显露不安。",
+          neutral: "情绪平稳，状态正常。"
+      };
+      
       const report = {
         id: `daily-${userId}-${Date.now()}`,
-        userId, userName, userRole,
+        userId, userName, userRole: user?.role || 'elderly',
         date: new Date().toISOString().split('T')[0],
-        ...analysis,
-        details: analysis.scores,
+        overallMood: maxEmotion,
+        trend: "API 分析数据",
+        summary: summaryMap[maxEmotion] || "数据正常",
+        details: totalScores,
+        suggestions: "请结合实际情况给予关怀。",
         interactionCount: fileList.length
       };
 
       db.reports.unshift(report);
-      for (const file of fileList) {
-        await fs.rename(path.join(PENDING_DIR, file), path.join(UPLOADS_DIR, file));
-      }
       newReports.push(report);
+
+      // 移动源文件
+      for (const file of fileList) {
+        await fs.promises.rename(path.join(PENDING_DIR, file), path.join(UPLOADS_DIR, file));
+      }
     }
 
     await writeDB(db);
     res.json({ success: true, count: newReports.length });
-  } catch (error) { res.status(500).json({ error: error.message }); }
+
+  } catch (error) {
+    console.error("Analysis Error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // --- General User APIs ---
@@ -256,8 +314,8 @@ app.get('/api/reports', async (req, res) => {
   res.json(db.reports);
 });
 
-// --- Video Queue ---
-app.post('/api/queue-video', upload.single('video'), (req, res) => res.json({ success: true }));
+// --- Audio Queue ---
+app.post('/api/queue-audio', upload.single('audio'), (req, res) => res.json({ success: true }));
 
 // --- Health Logs ---
 app.post('/api/health-logs', async (req, res) => {
